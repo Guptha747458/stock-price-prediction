@@ -5,6 +5,11 @@ import datetime
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.preprocessing import MinMaxScaler
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 # Import custom modules
 from src.data_ingestion import fetch_stock_data, get_ticker_info, search_tickers
@@ -16,6 +21,7 @@ from src.models import (
     calculate_metrics
 )
 from src.trading import generate_trading_signals
+from src.assistant import get_assistant_response
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -25,164 +31,274 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Premium Custom Styling (Dark Glassmorphism UI) ---
+# --- Professional Finance Styling (Bloomberg Terminal) ---
 _CSS = """
 <style>
-/* --- AlphaPulse 2.0 — Aurora Glass Design --- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@600;700;800&display=swap');
+/* --- AlphaPulse — Bloomberg Terminal Design --- */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
+/* ── Base ── */
 html, body, [data-testid="stAppViewContainer"] {
-    background: radial-gradient(1200px 800px at 80% -10%, rgba(120,119,198,0.25), transparent 60%),
-                radial-gradient(900px 600px at -10% 20%, rgba(56,189,248,0.18), transparent 55%),
-                #070B14;
-    font-family: 'Inter', sans-serif;
-    color: #E6EDF7;
+    background: #0D0D0D;
+    font-family: 'IBM Plex Sans', sans-serif;
+    color: #C8C8C8;
 }
 
-/* subtle animated grid */
+/* Top status bar accent — the signature element */
 [data-testid="stAppViewContainer"]::before {
     content: "";
     position: fixed;
-    inset: 0;
-    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
-    mask-image: radial-gradient(ellipse at center, black 40%, transparent 70%);
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: #FF6600;
+    z-index: 9999;
     pointer-events: none;
-    z-index: 0;
 }
 
-/* Headers */
-h1, h2, h3 {
-    font-family: 'Sora', sans-serif;
+/* ── Typography ── */
+h1, h2, h3, h4 {
+    font-family: 'IBM Plex Sans', sans-serif;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: 0.01em;
+    color: #E8E8E8;
+    text-transform: uppercase;
 }
 
 .main-title {
-    font-family: 'Sora', sans-serif;
-    background: linear-gradient(135deg, #22D3EE 0%, #818CF8 45%, #C084FC 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 3.2rem;
-    font-weight: 800;
-    margin-bottom: 0.15rem;
-    text-shadow: 0 0 30px rgba(129,140,248,0.25);
+    font-family: 'IBM Plex Mono', monospace;
+    color: #FF6600;
+    font-size: 2.1rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.1rem;
+    text-transform: uppercase;
 }
 
 .subtitle {
-    color: #9AA8BD;
-    font-size: 1.05rem;
-    margin-bottom: 1.8rem;
+    color: #666666;
+    font-size: 0.82rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    border-left: 2px solid #FF6600;
+    padding-left: 0.6rem;
 }
 
-/* Sidebar */
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0B1220 0%, #0A0F1A 100%);
-    border-right: 1px solid rgba(148,163,184,0.12);
+    background: #111111;
+    border-right: 1px solid #2A2A2A;
 }
 [data-testid="stSidebar"] .block-container {
-    padding-top: 1.2rem;
+    padding-top: 1rem;
+}
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stSelectbox label,
+[data-testid="stSidebar"] p {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: #888888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-/* Cards */
+/* ── Metric cards — sharp, borderline, no rounding ── */
 .metric-card {
-    position: relative;
-    background: rgba(17, 25, 40, 0.65);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    border: 1px solid rgba(148,163,184,0.14);
-    border-radius: 16px;
-    padding: 1.4rem 1.5rem;
-    box-shadow: 0 10px 30px rgba(2,6,23,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
-    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
-    overflow: hidden;
-}
-.metric-card::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    background: linear-gradient(135deg, rgba(56,189,248,0.25), rgba(192,132,252,0.22));
-    opacity: 0;
-    transition: opacity 0.22s ease;
-    z-index: 0;
-    border-radius: 16px;
+    background: #141414;
+    border: 1px solid #2A2A2A;
+    border-top: 2px solid #FF6600;
+    border-radius: 0;
+    padding: 0.9rem 1rem;
+    transition: border-color 0.15s ease, background 0.15s ease;
 }
 .metric-card:hover {
-    transform: translateY(-3px);
-    border-color: rgba(56,189,248,0.35);
-    box-shadow: 0 14px 40px rgba(56,189,248,0.12);
+    background: #181818;
+    border-color: #FF6600;
+    border-top-color: #FF6600;
 }
-.metric-card:hover::after { opacity: 0.15; }
 
 .metric-label {
-    font-size: 0.78rem;
-    color: #8FA0B8;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: #555555;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 0.35rem;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.3rem;
 }
 .metric-value {
-    font-size: 2.15rem;
-    font-weight: 700;
-    color: #F8FAFC;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.9rem;
+    font-weight: 600;
+    color: #E8E8E8;
     line-height: 1.1;
 }
 
-/* Recommendation badges */
+/* ── Recommendation badges — flat, terminal style ── */
 .rec-badge {
     display: inline-block;
-    padding: 0.55rem 1.4rem;
-    font-size: 1.35rem;
-    font-weight: 800;
-    border-radius: 9999px;
+    padding: 0.3rem 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 0;
     text-align: center;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border: 1px solid rgba(255,255,255,0.12);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+    letter-spacing: 0.1em;
+    border: none;
 }
-.rec-strong-buy  { background: linear-gradient(135deg, #059669, #10B981); color: white; }
-.rec-buy         { background: linear-gradient(135deg, #047857, #059669); color: white; }
-.rec-hold        { background: linear-gradient(135deg, #334155, #475569); color: #E2E8F0; }
-.rec-sell        { background: linear-gradient(135deg, #B91C1C, #EF4444); color: white; }
-.rec-strong-sell { background: linear-gradient(135deg, #7F1D1D, #B91C1C); color: white; }
+.rec-strong-buy  { background: #00AA44; color: #0D0D0D; }
+.rec-buy         { background: #007733; color: #CCFFDD; }
+.rec-hold        { background: #333333; color: #AAAAAA; }
+.rec-sell        { background: #CC2200; color: #FFE0DD; }
+.rec-strong-sell { background: #990000; color: #FFE0DD; }
 
-/* Status */
-.status-ok { color: #34D399; font-weight: 600; }
+/* ── Status ── */
+.status-ok {
+    color: #00CC55;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+}
 
-/* Buttons and inputs */
+/* ── Buttons ── */
 .stButton > button {
-    background: linear-gradient(135deg, #1E293B, #0F172A);
-    color: #E2E8F0;
-    border: 1px solid rgba(148,163,184,0.2);
-    border-radius: 10px;
-    padding: 0.55rem 1.1rem;
-    transition: all 0.2s ease;
+    background: #1A1A1A;
+    color: #C8C8C8;
+    border: 1px solid #333333;
+    border-radius: 0;
+    padding: 0.45rem 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: all 0.15s ease;
 }
 .stButton > button:hover {
-    border-color: rgba(56,189,248,0.5);
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
-    transform: translateY(-1px);
+    background: #FF6600;
+    color: #0D0D0D;
+    border-color: #FF6600;
 }
 
-/* Dataframes and tables */
+/* ── Inputs & selects ── */
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] > div > div {
+    background: #141414 !important;
+    border: 1px solid #2A2A2A !important;
+    border-radius: 0 !important;
+    color: #E8E8E8 !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.82rem !important;
+}
+[data-testid="stTextInput"] input:focus {
+    border-color: #FF6600 !important;
+    box-shadow: none !important;
+}
+
+/* ── Tabs ── */
+[data-testid="stTabs"] [role="tab"] {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #666666;
+    border-radius: 0;
+    padding: 0.5rem 1rem;
+    border-bottom: 2px solid transparent;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: #FF6600;
+    border-bottom: 2px solid #FF6600;
+    background: transparent;
+}
+
+/* ── DataFrames / tables ── */
 [data-testid="stDataFrame"] {
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid rgba(148,163,184,0.14);
+    border-radius: 0;
+    border: 1px solid #2A2A2A;
+}
+[data-testid="stDataFrame"] th {
+    background: #1A1A1A !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.72rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: #888888 !important;
+}
+[data-testid="stDataFrame"] td {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.82rem !important;
+    color: #C8C8C8 !important;
 }
 
-/* Plotly chart containers */
+/* ── Plotly chart containers ── */
 .js-plotly-plot {
-    border-radius: 14px;
-    overflow: hidden;
+    border: 1px solid #2A2A2A;
+    border-radius: 0;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #1F2A44; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #2A3A5E; }
+/* ── Info / alert boxes ── */
+[data-testid="stAlert"] {
+    background: #141414 !important;
+    border: 1px solid #2A2A2A !important;
+    border-left: 3px solid #FF6600 !important;
+    border-radius: 0 !important;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    color: #C8C8C8 !important;
+}
+
+/* ── Dividers ── */
+hr {
+    border: none;
+    border-top: 1px solid #2A2A2A;
+    margin: 1rem 0;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0D0D0D; }
+::-webkit-scrollbar-thumb { background: #333333; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #FF6600; }
+
+/* ── Streamlit metric widgets ── */
+[data-testid="metric-container"] {
+    background: #141414;
+    border: 1px solid #2A2A2A;
+    border-top: 2px solid #333333;
+    padding: 0.75rem 1rem;
+    border-radius: 0;
+}
+[data-testid="metric-container"] label {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.68rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: #555555 !important;
+}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 1.6rem !important;
+    color: #E8E8E8 !important;
+}
+[data-testid="metric-container"] [data-testid="stMetricDelta"] {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.78rem !important;
+}
+
+/* ── Chat messages ── */
+[data-testid="stChatMessage"] {
+    background: #141414 !important;
+    border: 1px solid #2A2A2A !important;
+    border-radius: 0 !important;
+    font-family: 'IBM Plex Sans', sans-serif;
+}
+
+/* ── Spinner ── */
+[data-testid="stSpinner"] p {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    color: #666666;
+}
 </style>
 """
 
@@ -319,30 +435,21 @@ with st.sidebar.expander("🔍 Search by Company Name", expanded=False):
         )
         if st.button("✅ Use this ticker", key="use_search_ticker", use_container_width=True):
             chosen_symbol = chosen_label.split("  —  ")[0].strip()
-            st.session_state["custom_ticker"]   = chosen_symbol
-            st.session_state["force_custom"]    = True   # flag to switch to Custom mode
-            st.session_state["has_run"]         = True   # Run automatically on search select!
-            st.session_state["last_seen_ticker"] = chosen_symbol.upper()
-            # Clear search state to close the panel cleanly
+            st.session_state["custom_ticker"]       = chosen_symbol
+            st.session_state["custom_ticker_input"] = chosen_symbol # Important: updates the actual widget's value
+            st.session_state["market_category"]     = "🏗️ Custom (Any Exchange)"
+            st.session_state["has_run"]             = True
+            st.session_state["last_seen_ticker"]    = chosen_symbol.upper()
             del st.session_state["search_results"]
             st.rerun()
     elif do_search:
         st.warning("No results found. Try a different name or check spelling.")
 
-# If a search result was just applied, force Custom mode
-if st.session_state.get("force_custom"):
-    default_category_index = list(GLOBAL_STOCKS.keys()).index("🏗️ Custom (Any Exchange)")
-else:
-    default_category_index = 0
-
 market_category = st.sidebar.selectbox(
     "Market / Category:",
     list(GLOBAL_STOCKS.keys()),
-    index=default_category_index,
     key="market_category"
 )
-# Reset the force flag once the widget has rendered
-st.session_state["force_custom"] = False
 
 if market_category == "🏗️ Custom (Any Exchange)":
     # Full custom entry mode
@@ -415,8 +522,6 @@ train_split = st.sidebar.slider("Train/Test Split Ratio:", min_value=0.6, max_va
 
 st.sidebar.markdown("---")
 run_button = st.sidebar.button("⚡ Fetch & Train Models", use_container_width=True)
-
-# --- Main App Execution Logic ---
 
 # --- Main App Execution Logic ---
 
@@ -616,23 +721,31 @@ if data_loaded:
     # Cache the df so the resource-cached train function can access it
     st.session_state['_df_cache'] = df
 
-    # Initialize session state for button trigger
-    if 'train_trigger' not in st.session_state:
-        st.session_state.train_trigger = False
-
-    if run_button:
-        st.session_state.train_trigger = True
-        # Clear both caches to force full retrain
-        st.cache_resource.clear()
-        st.cache_data.clear()
-
     # Derive hash key from current parameters to bust model cache on param change
     _cache_key = (ticker, str(start_date), str(end_date), sequence_length, lstm_epochs, train_split)
 
-    with st.spinner("🧠 Training Random Forest, XGBoost, and PyTorch LSTM models on stock history..."):
+    # Detect whether this is a genuinely new training run (params changed or button pressed)
+    _needs_training = (
+        run_button or
+        st.session_state.get('_last_trained_key') != _cache_key
+    )
+
+    if run_button:
+        # Clear both caches to force full retrain when button pressed
+        st.cache_resource.clear()
+        st.cache_data.clear()
+
+    if _needs_training:
+        # Show spinner only when actually training (first load or param change)
+        with st.spinner("🧠 Training Random Forest, XGBoost, and PyTorch LSTM models on stock history..."):
+            reg_data, lstm_data, lag_days = prepare_all_data(df, sequence_length, train_split)
+            models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split)
+        st.session_state['_last_trained_key'] = _cache_key
+        st.toast("Models trained successfully!", icon="✅")
+    else:
+        # Tab switch / sidebar interaction — return instantly from cache, no spinner
         reg_data, lstm_data, lag_days = prepare_all_data(df, sequence_length, train_split)
         models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split)
-        st.toast("Models trained successfully!", icon="✅")
 
     # Unpack model data
     rf_model = models_dict['rf']
@@ -646,57 +759,148 @@ if data_loaded:
     X_tr_lstm, y_tr_lstm, X_te_lstm, y_te_lstm, feat_scaler_lstm, scaler_lstm, feat_cols_lstm = lstm_data
     X_tr_lstm, y_tr_lstm, X_te_lstm, y_te_lstm = X_tr_lstm.copy(), y_tr_lstm.copy(), X_te_lstm.copy(), y_te_lstm.copy()
 
-    # Align clean datasets and split indices for metric calculations and plotting
-    df_lags_clean = create_lagged_features(df, lag_days=lag_days)
-    df_clean_reg = df_lags_clean.dropna().iloc[:-1]
-    split_idx_reg = int(len(df_clean_reg) * train_split)
+    # --- Generate Predictions (cached in session_state to avoid re-running on every tab switch / chat send) ---
+    if st.session_state.get('_pred_cache_key') != _cache_key:
+        # Align clean datasets and split indices
+        df_lags_clean = create_lagged_features(df, lag_days=lag_days)
+        df_clean_reg = df_lags_clean.dropna().iloc[:-1]
+        split_idx_reg = int(len(df_clean_reg) * train_split)
 
-    df_clean_lstm = df.dropna().iloc[:-1]
-    split_idx_lstm = int((len(df_clean_lstm) - sequence_length) * train_split)
+        df_clean_lstm = df.dropna().iloc[:-1]
+        split_idx_lstm = int((len(df_clean_lstm) - sequence_length) * train_split)
 
-    # --- Generate Predictions for Test Set & Tomorrow ---
-    
-    # 1. XGBoost & Random Forest test set predictions
-    y_pred_rf_scaled = rf_model.predict(X_te_reg)
-    y_pred_xgb_scaled = xgb_model.predict(X_te_reg)
-    
-    y_pred_rf = scaler_reg.inverse_transform(y_pred_rf_scaled.reshape(-1, 1)).ravel()
-    y_pred_xgb = scaler_reg.inverse_transform(y_pred_xgb_scaled.reshape(-1, 1)).ravel()
-    y_true_reg = scaler_reg.inverse_transform(y_te_reg.reshape(-1, 1)).ravel()
-    
-    # 2. LSTM test set predictions
-    y_pred_lstm_scaled = lstm_model.predict(X_te_lstm)
-    y_pred_lstm = scaler_lstm.inverse_transform(y_pred_lstm_scaled.reshape(-1, 1)).ravel()
-    y_true_lstm = scaler_lstm.inverse_transform(y_te_lstm.reshape(-1, 1)).ravel()
-    
-    # Predict tomorrow's price (1 day ahead)
-    # A. Regression tomorrow input
-    # Get the very latest row containing features
-    df_lags = create_lagged_features(df, lag_days=lag_days)
-    # Use the last fully-populated row (after dropna) to avoid NaN features crashing the scaler
-    latest_feat_reg_df = df_lags[feat_cols_reg].dropna().iloc[-1:]
-    latest_feat_reg_scaled = feat_scaler_reg.transform(latest_feat_reg_df.values)
-    
-    pred_tomorrow_rf_scaled = rf_model.predict(latest_feat_reg_scaled)
-    pred_tomorrow_rf = scaler_reg.inverse_transform(pred_tomorrow_rf_scaled.reshape(-1, 1))[0][0]
-    
-    pred_tomorrow_xgb_scaled = xgb_model.predict(latest_feat_reg_scaled)
-    pred_tomorrow_xgb = scaler_reg.inverse_transform(pred_tomorrow_xgb_scaled.reshape(-1, 1))[0][0]
-    
-    # B. LSTM tomorrow input (requires last sequence_length days of scaled features)
-    # Use dropna() to guard against NaN-containing tail rows from rolling-window indicators
-    df_no_nan = df.dropna()
-    latest_sequence_lstm = df_no_nan[feat_cols_lstm].iloc[-sequence_length:].values
-    latest_sequence_lstm_scaled = feat_scaler_lstm.transform(latest_sequence_lstm)
-    
-    pred_tomorrow_lstm_scaled = lstm_model.predict(np.expand_dims(latest_sequence_lstm_scaled, axis=0))
-    pred_tomorrow_lstm = scaler_lstm.inverse_transform(pred_tomorrow_lstm_scaled.reshape(-1, 1))[0][0]
+        # 1. XGBoost & Random Forest test set predictions
+        y_pred_rf_scaled = rf_model.predict(X_te_reg)
+        y_pred_xgb_scaled = xgb_model.predict(X_te_reg)
+
+        y_pred_rf   = scaler_reg.inverse_transform(y_pred_rf_scaled.reshape(-1, 1)).ravel()
+        y_pred_xgb  = scaler_reg.inverse_transform(y_pred_xgb_scaled.reshape(-1, 1)).ravel()
+        y_true_reg  = scaler_reg.inverse_transform(y_te_reg.reshape(-1, 1)).ravel()
+
+        # 2. LSTM test set predictions
+        y_pred_lstm_scaled = lstm_model.predict(X_te_lstm)
+        y_pred_lstm  = scaler_lstm.inverse_transform(y_pred_lstm_scaled.reshape(-1, 1)).ravel()
+        y_true_lstm  = scaler_lstm.inverse_transform(y_te_lstm.reshape(-1, 1)).ravel()
+
+        # 3. Tomorrow's predictions (1-day ahead)
+        # A. Regression tomorrow
+        df_lags = create_lagged_features(df, lag_days=lag_days)
+        latest_feat_reg_df    = df_lags[feat_cols_reg].dropna().iloc[-1:]
+        latest_feat_reg_scaled = feat_scaler_reg.transform(latest_feat_reg_df.values)
+
+        pred_tomorrow_rf  = scaler_reg.inverse_transform(rf_model.predict(latest_feat_reg_scaled).reshape(-1, 1))[0][0]
+        pred_tomorrow_xgb = scaler_reg.inverse_transform(xgb_model.predict(latest_feat_reg_scaled).reshape(-1, 1))[0][0]
+
+        # B. LSTM tomorrow
+        df_no_nan = df.dropna()
+        latest_sequence_lstm        = df_no_nan[feat_cols_lstm].iloc[-sequence_length:].values
+        latest_sequence_lstm_scaled = feat_scaler_lstm.transform(latest_sequence_lstm)
+        pred_tomorrow_lstm = scaler_lstm.inverse_transform(
+            lstm_model.predict(np.expand_dims(latest_sequence_lstm_scaled, axis=0)).reshape(-1, 1)
+        )[0][0]
+
+        # 4. Rolling 7-day forecast for all three models
+        future_days  = 7
+        future_dates = [df.index[-1] + datetime.timedelta(days=i) for i in range(1, future_days + 1)]
+
+        # LSTM rolling forecast
+        close_idx         = feat_cols_lstm.index('Close')
+        lstm_rolling_seq  = latest_sequence_lstm_scaled.copy()
+        lstm_forecast_raw = []
+        for _ in range(future_days):
+            pred_s = lstm_model.predict(np.expand_dims(lstm_rolling_seq, axis=0))
+            lstm_forecast_raw.append(pred_s[0])
+            new_row          = lstm_rolling_seq[-1].copy()
+            new_row[close_idx] = pred_s[0]
+            lstm_rolling_seq = np.vstack([lstm_rolling_seq[1:], new_row])
+        lstm_forecast_prices = scaler_lstm.inverse_transform(
+            np.array(lstm_forecast_raw).reshape(-1, 1)
+        ).ravel()
+
+        # XGBoost rolling forecast
+        lag_indices       = [feat_cols_reg.index(f'Close_Lag_{i}') for i in range(1, lag_days + 1)]
+        close_idx_reg     = feat_cols_reg.index('Close')
+        current_xgb_feat  = latest_feat_reg_df.values[0].copy()
+        xgb_forecast      = []
+        for _ in range(future_days):
+            pred_price = scaler_reg.inverse_transform(
+                xgb_model.predict(feat_scaler_reg.transform([current_xgb_feat])).reshape(-1, 1)
+            )[0][0]
+            xgb_forecast.append(pred_price)
+            for i in range(lag_days - 1, 0, -1):
+                current_xgb_feat[lag_indices[i]] = current_xgb_feat[lag_indices[i - 1]]
+            current_xgb_feat[lag_indices[0]]  = current_xgb_feat[close_idx_reg]
+            current_xgb_feat[close_idx_reg]   = pred_price
+
+        # Random Forest rolling forecast
+        current_rf_feat = latest_feat_reg_df.values[0].copy()
+        rf_forecast     = []
+        for _ in range(future_days):
+            pred_price = scaler_reg.inverse_transform(
+                rf_model.predict(feat_scaler_reg.transform([current_rf_feat])).reshape(-1, 1)
+            )[0][0]
+            rf_forecast.append(pred_price)
+            for i in range(lag_days - 1, 0, -1):
+                current_rf_feat[lag_indices[i]] = current_rf_feat[lag_indices[i - 1]]
+            current_rf_feat[lag_indices[0]]  = current_rf_feat[close_idx_reg]
+            current_rf_feat[close_idx_reg]   = pred_price
+
+        # Store everything in session_state so future reruns (tab switches, chat) skip all this
+        st.session_state['_pred_cache_key'] = _cache_key
+        st.session_state['_pred_results'] = {
+            'df_clean_reg':          df_clean_reg,
+            'df_clean_lstm':         df_clean_lstm,
+            'split_idx_reg':         split_idx_reg,
+            'split_idx_lstm':        split_idx_lstm,
+            'y_pred_rf':             y_pred_rf,
+            'y_pred_xgb':            y_pred_xgb,
+            'y_pred_lstm':           y_pred_lstm,
+            'y_true_reg':            y_true_reg,
+            'y_true_lstm':           y_true_lstm,
+            'pred_tomorrow_rf':      pred_tomorrow_rf,
+            'pred_tomorrow_xgb':     pred_tomorrow_xgb,
+            'pred_tomorrow_lstm':    pred_tomorrow_lstm,
+            'future_dates':          future_dates,
+            'rf_forecast':           rf_forecast,
+            'xgb_forecast':          xgb_forecast,
+            'lstm_forecast_prices':  lstm_forecast_prices,
+            'feat_cols_reg':         feat_cols_reg,
+            'feat_cols_lstm':        feat_cols_lstm,
+            'latest_feat_reg_df':    latest_feat_reg_df,
+            'latest_sequence_lstm_scaled': latest_sequence_lstm_scaled,
+            'lag_days':              lag_days,
+        }
+    else:
+        # Restore instantly from session_state — zero computation on reruns
+        _pr = st.session_state['_pred_results']
+        df_clean_reg          = _pr['df_clean_reg']
+        df_clean_lstm         = _pr['df_clean_lstm']
+        split_idx_reg         = _pr['split_idx_reg']
+        split_idx_lstm        = _pr['split_idx_lstm']
+        y_pred_rf             = _pr['y_pred_rf']
+        y_pred_xgb            = _pr['y_pred_xgb']
+        y_pred_lstm           = _pr['y_pred_lstm']
+        y_true_reg            = _pr['y_true_reg']
+        y_true_lstm           = _pr['y_true_lstm']
+        pred_tomorrow_rf      = _pr['pred_tomorrow_rf']
+        pred_tomorrow_xgb     = _pr['pred_tomorrow_xgb']
+        pred_tomorrow_lstm    = _pr['pred_tomorrow_lstm']
+        future_dates          = _pr['future_dates']
+        rf_forecast           = _pr['rf_forecast']
+        xgb_forecast          = _pr['xgb_forecast']
+        lstm_forecast_prices  = _pr['lstm_forecast_prices']
+        feat_cols_reg         = _pr['feat_cols_reg']
+        feat_cols_lstm        = _pr['feat_cols_lstm']
+        latest_feat_reg_df    = _pr['latest_feat_reg_df']
+        latest_sequence_lstm_scaled = _pr['latest_sequence_lstm_scaled']
+        lag_days              = _pr['lag_days']
 
     # --- App Tabs ---
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "📈 Technical Charts & Indicators", 
         "🔮 Forecast & Consensus Recommendations", 
-        "📊 Model Comparison & Analytics"
+        "📊 Model Comparison & Analytics",
+        "💬 AlphaPulse AI Assistant"
     ])
 
     # ==================== TAB 1: TECHNICAL ANALYSIS ====================
@@ -864,7 +1068,9 @@ if data_loaded:
         test_dates_reg = df_clean_reg.index[split_idx_reg:]
         
         # LSTM sequence creates elements of size: len(df_clean_lstm) - sequence_length
-        test_dates_lstm = df_clean_lstm.index[sequence_length + split_idx_lstm:]
+        # Guard against off-by-one: ensure dates length matches prediction array length
+        _lstm_raw_dates = df_clean_lstm.index[sequence_length + split_idx_lstm:]
+        test_dates_lstm = _lstm_raw_dates[:len(y_pred_lstm)]
         
         # Plotly chart comparison
         pred_fig = go.Figure()
@@ -891,73 +1097,9 @@ if data_loaded:
         st.markdown("---")
         st.markdown("### Next 7 Days Rolling Price Forecast")
         
-        # Implement rolling 7 day prediction forecast for all 3 models
-        # For simplicity and robust display, we roll the Close price predictions.
-        # LSTM rolling forecast:
-        # We start with the latest sequence of length `sequence_length` of features.
-        # When we predict tomorrow, we append the predicted Close to our sequence, shift, 
-        # and recompute technical indicators (or keep them fixed/updated).
-        # To make it robust and prevent errors, we can generate a multi-step forecast using a simpler autoregressive lag method.
-        # Let's perform rolling predictions:
-        
+        # Rolling forecasts are pre-computed before tabs (cached in session_state).
+        # Just build dates and plot directly from cached values.
         future_days = 7
-        future_dates = [df.index[-1] + datetime.timedelta(days=i) for i in range(1, future_days + 1)]
-        
-        # LSTM multi-day rolling forecast:
-        lstm_rolling_seq = latest_sequence_lstm_scaled.copy() # shape (sequence_length, num_features)
-        lstm_forecast = []
-        
-        # For indicators recalculation, let's keep them constant and just roll the Close price column (index 3 in features: Open, High, Low, Close, Volume... etc. Let's find Close index)
-        close_idx = feat_cols_lstm.index('Close')
-        
-        for _ in range(future_days):
-            pred_scaled = lstm_model.predict(np.expand_dims(lstm_rolling_seq, axis=0))
-            lstm_forecast.append(pred_scaled[0])
-            
-            # Roll sequence: remove first, add new row where 'Close' is the predicted scaled value
-            new_row = lstm_rolling_seq[-1].copy()
-            new_row[close_idx] = pred_scaled[0] # Put prediction in the close position
-            lstm_rolling_seq = np.vstack([lstm_rolling_seq[1:], new_row])
-            
-        lstm_forecast_prices = scaler_lstm.inverse_transform(np.array(lstm_forecast).reshape(-1, 1)).ravel()
-        
-        # XGBoost rolling forecast:
-        xgb_rolling_features = latest_feat_reg_df.values.copy() # shape (1, num_features)
-        xgb_forecast = []
-        # Find features index for lags: 'Close_Lag_1', 'Close_Lag_2' etc.
-        lag_indices = [feat_cols_reg.index(f'Close_Lag_{i}') for i in range(1, lag_days + 1)]
-        close_idx_reg = feat_cols_reg.index('Close')
-        
-        current_xgb_feat = latest_feat_reg_df.values[0].copy()
-        
-        for _ in range(future_days):
-            scaled_feat = feat_scaler_reg.transform([current_xgb_feat])
-            pred_scaled = xgb_model.predict(scaled_feat)
-            pred_price = scaler_reg.inverse_transform(pred_scaled.reshape(-1, 1))[0][0]
-            xgb_forecast.append(pred_price)
-            
-            # Roll lags: shift Lag_i to Lag_{i+1}
-            # current_xgb_feat has lags in the order: Lag_1, Lag_2, Lag_3...
-            # Lag_1 becomes the new predicted price, Lag_2 becomes the old Lag_1, and so on.
-            for i in range(lag_days - 1, 0, -1):
-                current_xgb_feat[lag_indices[i]] = current_xgb_feat[lag_indices[i - 1]]
-            current_xgb_feat[lag_indices[0]] = current_xgb_feat[close_idx_reg] # Lag_1 becomes previous Close
-            current_xgb_feat[close_idx_reg] = pred_price # Close becomes predicted price
-            
-        # Random Forest rolling forecast:
-        current_rf_feat = latest_feat_reg_df.values[0].copy()
-        rf_forecast = []
-        for _ in range(future_days):
-            scaled_feat = feat_scaler_reg.transform([current_rf_feat])
-            pred_scaled = rf_model.predict(scaled_feat)
-            pred_price = scaler_reg.inverse_transform(pred_scaled.reshape(-1, 1))[0][0]
-            rf_forecast.append(pred_price)
-            
-            # Roll lags
-            for i in range(lag_days - 1, 0, -1):
-                current_rf_feat[lag_indices[i]] = current_rf_feat[lag_indices[i - 1]]
-            current_rf_feat[lag_indices[0]] = current_rf_feat[close_idx_reg]
-            current_rf_feat[close_idx_reg] = pred_price
             
         # Draw Forecast Line Chart
         forecast_fig = go.Figure()
@@ -992,22 +1134,67 @@ if data_loaded:
         st.plotly_chart(forecast_fig, config={'displayModeBar': True, 'scrollZoom': True})
 
     # ==================== TAB 3: MODEL COMPARISON ====================
+    # --- Compute model metrics + chat_context (cached to avoid re-running on tab switches) ---
+    if st.session_state.get('_metrics_cache_key') != _cache_key:
+        y_today_reg = df_clean_reg['Close'].iloc[split_idx_reg:].values
+        metrics_rf  = calculate_metrics(y_true_reg, y_pred_rf,  y_today_reg)
+        metrics_xgb = calculate_metrics(y_true_reg, y_pred_xgb, y_today_reg)
+
+        # LSTM y_today — guard length to match prediction array
+        _lstm_y_today_raw = df_clean_lstm['Close'].iloc[sequence_length + split_idx_lstm:].values
+        y_today_lstm  = _lstm_y_today_raw[:len(y_pred_lstm)]
+        metrics_lstm  = calculate_metrics(y_true_lstm, y_pred_lstm, y_today_lstm)
+
+        chat_context = {
+            'symbol': ticker,
+            'name': info.get('longName', ticker),
+            'sector': info.get('sector', 'N/A'),
+            'industry': info.get('industry', 'N/A'),
+            'description': info.get('longBusinessSummary', 'No description available.'),
+            'current_price': current_price,
+            'currency': info.get('currency', 'USD'),
+            'website': info.get('website', 'N/A'),
+            'consensus': {
+                'recommendation': rec,
+                'score': score,
+                'reasons': reasons,
+                'metrics': {
+                    'rsi': recommendation_data['metrics']['rsi'],
+                    'bb_upper': recommendation_data['metrics']['bb_upper'],
+                    'bb_lower': recommendation_data['metrics']['bb_lower']
+                }
+            },
+            'forecast': {
+                'tomorrow': {
+                    'rf': pred_tomorrow_rf,
+                    'xgb': pred_tomorrow_xgb,
+                    'lstm': pred_tomorrow_lstm
+                },
+                'fc_7d': {
+                    'rf':   rf_forecast.tolist()           if hasattr(rf_forecast,           'tolist') else list(rf_forecast),
+                    'xgb':  xgb_forecast.tolist()          if hasattr(xgb_forecast,          'tolist') else list(xgb_forecast),
+                    'lstm': lstm_forecast_prices.tolist()  if hasattr(lstm_forecast_prices,  'tolist') else list(lstm_forecast_prices)
+                }
+            },
+            'model_metrics': {'rf': metrics_rf, 'xgb': metrics_xgb, 'lstm': metrics_lstm}
+        }
+
+        st.session_state['_metrics_cache_key'] = _cache_key
+        st.session_state['_metrics_results']   = {
+            'metrics_rf':   metrics_rf,
+            'metrics_xgb':  metrics_xgb,
+            'metrics_lstm': metrics_lstm,
+            'chat_context': chat_context,
+        }
+    else:
+        _mr         = st.session_state['_metrics_results']
+        metrics_rf  = _mr['metrics_rf']
+        metrics_xgb = _mr['metrics_xgb']
+        metrics_lstm = _mr['metrics_lstm']
+        chat_context = _mr['chat_context']
+
     with tab3:
         st.markdown("### Model Performance Analysis")
-        
-        # Calculate performance metrics using actual values in the test set
-        # RF and XGBoost test sets align with y_true_reg
-        # We need to extract the previous day's close for the directional accuracy calculation
-        # Let's align y_today for both regression and LSTM
-        
-        # Regression y_today is the actual Close on the day of prediction
-        y_today_reg = df_clean_reg['Close'].iloc[split_idx_reg:].values
-        metrics_rf = calculate_metrics(y_true_reg, y_pred_rf, y_today_reg)
-        metrics_xgb = calculate_metrics(y_true_reg, y_pred_xgb, y_today_reg)
-        
-        # LSTM y_today
-        y_today_lstm = df_clean_lstm['Close'].iloc[sequence_length + split_idx_lstm:].values
-        metrics_lstm = calculate_metrics(y_true_lstm, y_pred_lstm, y_today_lstm)
         
         # Create metrics comparison table
         metrics_df = pd.DataFrame({
@@ -1051,3 +1238,52 @@ if data_loaded:
             best_acc = metrics_rf['Directional_Accuracy']
             
         st.info(f"💡 **Performance Insight**: **{best_model}** exhibited the highest Directional Accuracy on the test set (**{best_acc:.1f}%**). This suggests it is currently the most reliable model for predicting trend direction for **{info['longName']}** under these training parameters.")
+
+    # ==================== TAB 4: ALPHA PULSE AI ASSISTANT ====================
+    with tab4:
+        st.markdown("### 💬 AlphaPulse AI Assistant")
+        
+        groq_api_key = os.environ.get("GROQ_API_KEY", "")
+        # Display indicator of status
+        if not groq_api_key:
+            st.caption("⚠️ **Local Analyzer Mode**: Set `GROQ_API_KEY` in `.env` for full AI assistant features.")
+        else:
+            st.caption("🟢 **Groq Active** (Connected via LangChain)")
+            
+        # Initialize or reset chat history when switching stock tickers
+        if "chat_messages" not in st.session_state or st.session_state.get("current_chat_ticker") != ticker:
+            st.session_state["chat_messages"] = [
+                {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
+            ]
+            st.session_state["current_chat_ticker"] = ticker
+        # Clear history button
+        if st.button("🗑️ Clear Chat History", key="clear_chat"):
+            st.session_state["chat_messages"] = [
+                {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
+            ]
+            st.rerun()
+
+        # Display chat messages from history on app rerun
+        for msg in st.session_state["chat_messages"]:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+                
+        user_query = st.chat_input("Ask AlphaPulse AI...")
+            
+        if user_query:
+            # Display user message in chat message container
+            st.session_state["chat_messages"].append({"role": "user", "content": user_query})
+            with st.chat_message("user"):
+                st.markdown(user_query)
+                
+            # Get assistant response
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing stock patterns & generating response..."):
+                    resp = get_assistant_response(
+                        prompt=user_query,
+                        chat_history=st.session_state["chat_messages"][:-1],
+                        context=chat_context,
+                        api_key=groq_api_key
+                    )
+                    st.markdown(resp)
+                    st.session_state["chat_messages"].append({"role": "assistant", "content": resp})

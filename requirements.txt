@@ -7,3 +7,7 @@ xgboost
 torch
 plotly
 requests
+langchain
+langchain-core
+langchain-groq
+python-dotenv
