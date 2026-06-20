@@ -608,13 +608,8 @@ except Exception as e:
 
 if data_loaded:
     # Display Ticker Information Header
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"## {info['longName']} ({info['symbol']})")
-        st.markdown(f"**Sector**: {info['sector']} | **Industry**: {info['industry']} | **Currency**: {info['currency']}")
-    with col2:
-        if info.get('logo_url'):
-            st.markdown(f'<img src="{info["logo_url"]}" width="80" style="float:right; border-radius:8px;">', unsafe_allow_html=True)
+    st.markdown(f"## {info['longName']} ({info['symbol']})")
+    st.markdown(f"**Sector**: {info['sector']} | **Industry**: {info['industry']} | **Currency**: {info['currency']}")
             
     # Business Summary expander
     with st.expander("📖 View Company Description"):
