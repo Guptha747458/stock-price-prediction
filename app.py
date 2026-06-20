@@ -400,6 +400,14 @@ GLOBAL_STOCKS = {
     "🏗️ Custom (Any Exchange)": [],   # sentinel for custom mode
 }
 
+open_chat_clicked = st.sidebar.button(
+    "💬 AlphaPulse AI Assistant", 
+    use_container_width=True, 
+    disabled=not st.session_state.get("has_run", False),
+    help="You must fetch and train models first." if not st.session_state.get("has_run", False) else "Open the AI Chatbot"
+)
+st.sidebar.markdown("---")
+
 # ── Stock Selection Mode ──────────────────────────────────────────────────────
 st.sidebar.markdown("### 🌍 Stock Selection")
 
@@ -522,6 +530,8 @@ train_split = st.sidebar.slider("Train/Test Split Ratio:", min_value=0.6, max_va
 
 st.sidebar.markdown("---")
 run_button = st.sidebar.button("⚡ Fetch & Train Models", use_container_width=True)
+
+
 
 # --- Main App Execution Logic ---
 
@@ -896,11 +906,10 @@ if data_loaded:
         lag_days              = _pr['lag_days']
 
     # --- App Tabs ---
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "📈 Technical Charts & Indicators", 
         "🔮 Forecast & Consensus Recommendations", 
-        "📊 Model Comparison & Analytics",
-        "💬 AlphaPulse AI Assistant"
+        "📊 Model Comparison & Analytics"
     ])
 
     # ==================== TAB 1: TECHNICAL ANALYSIS ====================
@@ -1239,8 +1248,9 @@ if data_loaded:
             
         st.info(f"💡 **Performance Insight**: **{best_model}** exhibited the highest Directional Accuracy on the test set (**{best_acc:.1f}%**). This suggests it is currently the most reliable model for predicting trend direction for **{info['longName']}** under these training parameters.")
 
-    # ==================== TAB 4: ALPHA PULSE AI ASSISTANT ====================
-    with tab4:
+    # ==================== CHATBOT DIALOG ====================
+    @st.dialog("💬 AlphaPulse AI Assistant", width="large")
+    def chat_dialog():
         st.markdown("### 💬 AlphaPulse AI Assistant")
         
         groq_api_key = os.environ.get("GROQ_API_KEY", "")
@@ -1287,3 +1297,6 @@ if data_loaded:
                     )
                     st.markdown(resp)
                     st.session_state["chat_messages"].append({"role": "assistant", "content": resp})
+
+    if open_chat_clicked:
+        chat_dialog()
