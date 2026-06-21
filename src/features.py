@@ -88,7 +88,7 @@ def prepare_regression_data(df: pd.DataFrame, lag_days: int = 5, train_split: fl
     # Target: Tomorrow's close price (Shift Close back by 1)
     df_clean['Target'] = df_clean['Close'].shift(-1)
     # Drop the last row since its Target is NaN (we don't know tomorrow's close yet in historical data)
-    df_predict_tomorrow = df_clean.iloc[-1:] # Save for prediction later
+    # NOTE: Tomorrow's prediction is computed separately in app.py using the latest row of df_lags.
     df_clean = df_clean.dropna()
     
     # Define features

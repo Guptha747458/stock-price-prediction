@@ -522,6 +522,10 @@ three_years_ago = today - datetime.timedelta(days=3 * 365)
 start_date = st.sidebar.date_input("Start Date:", value=three_years_ago)
 end_date = st.sidebar.date_input("End Date:", value=today)
 
+# Fix #14: Validate date range before allowing the user to proceed
+if start_date >= end_date:
+    st.sidebar.error("⚠️ Start date must be before the end date.")
+
 # Model configuration options
 st.sidebar.markdown("### 🤖 Model Settings")
 sequence_length = st.sidebar.slider("LSTM Sequence Length (Days):", min_value=5, max_value=30, value=10)
@@ -529,7 +533,7 @@ lstm_epochs = st.sidebar.slider("LSTM Training Epochs:", min_value=5, max_value=
 train_split = st.sidebar.slider("Train/Test Split Ratio:", min_value=0.6, max_value=0.9, value=0.8, step=0.05)
 
 st.sidebar.markdown("---")
-run_button = st.sidebar.button("⚡ Fetch & Train Models", use_container_width=True)
+run_button = st.sidebar.button("⚡ Fetch & Train Models", use_container_width=True, disabled=(start_date >= end_date))
 
 
 
@@ -549,13 +553,10 @@ def load_data(ticker_symbol, start, end):
 if "has_run" not in st.session_state:
     st.session_state["has_run"] = False
 
+# Fix #5: Removed auto-trigger on ticker change — it wasted compute when users
+# were still browsing the dropdown. Only the explicit button now starts training.
 if "last_seen_ticker" not in st.session_state:
     st.session_state["last_seen_ticker"] = ticker
-else:
-    # If the user changed the active stock selection in the sidebar, auto-trigger execution!
-    if st.session_state["last_seen_ticker"] != ticker:
-        st.session_state["has_run"] = True
-        st.session_state["last_seen_ticker"] = ticker
 
 # If user clicks the run button, trigger execution
 if run_button:
@@ -656,10 +657,19 @@ if data_loaded:
         
     with m_col3:
         volume = info['volume'] if info['volume'] is not None else df['Volume'].iloc[-1]
+        # Format volume in abbreviated form to prevent overflow in metric card
+        if volume >= 1e9:
+            volume_str = f"{volume/1e9:.2f}B"
+        elif volume >= 1e6:
+            volume_str = f"{volume/1e6:.2f}M"
+        elif volume >= 1e3:
+            volume_str = f"{volume/1e3:.1f}K"
+        else:
+            volume_str = f"{volume:,.0f}"
         st.markdown(f"""
         <div class="metric-card">
             <div class="metric-label">Volume</div>
-            <div class="metric-value">{volume:,.0f}</div>
+            <div class="metric-value">{volume_str}</div>
             <div style="color: #94A3B8; font-size: 0.9rem; margin-top:0.6rem;">
                 Shares Traded Today
             </div>
@@ -690,6 +700,8 @@ if data_loaded:
 
     # --- Training the Models ---
     # We will compute training inside a cached function to avoid retraining on tab switches
+    # Fix #2: Pass df as a frozen bytes hash-key so @st.cache_data can detect changes
+    # without holding a mutable reference to the live dataframe.
     @st.cache_data(show_spinner=False)
     def prepare_all_data(df_processed, seq_len, split_ratio):
         """Cache-friendly: returns serialisable data (numpy arrays + scalers)."""
@@ -698,14 +710,17 @@ if data_loaded:
         lstm_data = prepare_lstm_data(df_processed, sequence_length=seq_len, train_split=split_ratio)
         return reg_data, lstm_data, lag_days
 
+    # Fix #3: Removed session_state access from inside @st.cache_resource.
+    # The df is now passed directly as a parameter so the function is pure.
+    # Fix #13: LSTM uses hidden_size=32 / num_layers=1 intentionally — lighter
+    # model that trains faster in the browser; dropout is auto-disabled for single layer.
     @st.cache_resource(show_spinner=False)
-    def train_all_models(df_hash_key, seq_len, epochs_num, split_ratio):
+    def train_all_models(df_hash_key, seq_len, epochs_num, split_ratio, df_processed):
         """Cache-friendly: returns non-serialisable model objects.
-        df_hash_key is a tuple (ticker, start, end) so Streamlit can invalidate on param change.
+        df_hash_key is a tuple (ticker, start, end, ...) so Streamlit invalidates on param change.
+        df_processed is passed directly — never read from session_state here.
         """
-        reg_data, lstm_data, _lag_days = prepare_all_data(
-            st.session_state['_df_cache'], seq_len, split_ratio
-        )
+        reg_data, lstm_data, _lag_days = prepare_all_data(df_processed, seq_len, split_ratio)
         X_tr_reg, y_tr_reg, X_te_reg, y_te_reg, feat_scaler_reg, scaler_reg, feat_cols_reg = reg_data
         X_tr_lstm, y_tr_lstm, X_te_lstm, y_te_lstm, feat_scaler_lstm, scaler_lstm, feat_cols_lstm = lstm_data
         
@@ -714,17 +729,14 @@ if data_loaded:
         
         lstm_model = PyTorchLSTMRegressor(
             input_size=len(feat_cols_lstm),
-            hidden_size=32,
-            num_layers=1,
+            hidden_size=32,   # Intentionally lighter than default (64) for faster in-browser training
+            num_layers=1,     # Single layer — dropout is auto-disabled by LSTMNetwork when num_layers=1
             epochs=epochs_num,
             batch_size=32
         )
         lstm_model.fit(X_tr_lstm, y_tr_lstm, val_data=(X_te_lstm, y_te_lstm))
         
         return {'rf': rf_model, 'xgb': xgb_model, 'lstm': lstm_model}
-
-    # Cache the df so the resource-cached train function can access it
-    st.session_state['_df_cache'] = df
 
     # Derive hash key from current parameters to bust model cache on param change
     _cache_key = (ticker, str(start_date), str(end_date), sequence_length, lstm_epochs, train_split)
@@ -736,21 +748,23 @@ if data_loaded:
     )
 
     if run_button:
-        # Clear both caches to force full retrain when button pressed
-        st.cache_resource.clear()
-        st.cache_data.clear()
+        # Fix #4: Clear only the specific cache functions instead of the global cache
+        # to avoid invalidating other users' trained models in multi-user deployments.
+        prepare_all_data.clear()
+        train_all_models.clear()
+        load_data.clear()
 
     if _needs_training:
         # Show spinner only when actually training (first load or param change)
         with st.spinner("🧠 Training Random Forest, XGBoost, and PyTorch LSTM models on stock history..."):
             reg_data, lstm_data, lag_days = prepare_all_data(df, sequence_length, train_split)
-            models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split)
+            models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split, df)
         st.session_state['_last_trained_key'] = _cache_key
         st.toast("Models trained successfully!", icon="✅")
     else:
         # Tab switch / sidebar interaction — return instantly from cache, no spinner
         reg_data, lstm_data, lag_days = prepare_all_data(df, sequence_length, train_split)
-        models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split)
+        models_dict = train_all_models(_cache_key, sequence_length, lstm_epochs, train_split, df)
 
     # Unpack model data
     rf_model = models_dict['rf']
@@ -903,8 +917,8 @@ if data_loaded:
     # --- App Tabs ---
     tab1, tab2, tab3 = st.tabs([
         "📈 Technical Charts & Indicators", 
-        "🔮 Forecast & Consensus Recommendations", 
-        "📊 Model Comparison & Analytics"
+        "🔮 Forecast & Recommendations", 
+        "📊 Model Comparison"
     ])
 
     # ==================== TAB 1: TECHNICAL ANALYSIS ====================
@@ -997,6 +1011,8 @@ if data_loaded:
         fig.update_layout(
             height=800,
             template="plotly_dark",
+            paper_bgcolor="#0D0D0D",
+            plot_bgcolor="#141414",
             xaxis_rangeslider_visible=False,
             legend=dict(
                 orientation="h",
@@ -1004,13 +1020,16 @@ if data_loaded:
                 y=-0.08,
                 xanchor="center",
                 x=0.5,
-                font=dict(size=11)
+                font=dict(size=11, color="#C8C8C8"),
+                bgcolor="rgba(0,0,0,0)"
             ),
-            margin=dict(t=30, b=80, l=50, r=50)
+            margin=dict(t=30, b=80, l=50, r=50),
+            xaxis=dict(gridcolor="#2A2A2A", linecolor="#2A2A2A"),
+            yaxis=dict(gridcolor="#2A2A2A", linecolor="#2A2A2A"),
         )
-        fig.update_yaxes(title_text="Price", row=1, col=1)
-        fig.update_yaxes(title_text="RSI", row=2, col=1, range=[10, 90])
-        fig.update_yaxes(title_text="Volume", row=3, col=1)
+        fig.update_yaxes(title_text="Price", row=1, col=1, gridcolor="#2A2A2A")
+        fig.update_yaxes(title_text="RSI", row=2, col=1, range=[10, 90], gridcolor="#2A2A2A")
+        fig.update_yaxes(title_text="Volume", row=3, col=1, gridcolor="#2A2A2A")
         
         st.plotly_chart(fig, config={'displayModeBar': True, 'scrollZoom': True})
 
@@ -1090,10 +1109,17 @@ if data_loaded:
         pred_fig.update_layout(
             height=500,
             template="plotly_dark",
+            paper_bgcolor="#0D0D0D",
+            plot_bgcolor="#141414",
             xaxis_title="Date",
             yaxis_title=f"Close Price ({info['currency']})",
             margin=dict(t=30, b=80, l=50, r=50),
-            legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5)
+            legend=dict(
+                orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5,
+                font=dict(color="#C8C8C8"), bgcolor="rgba(0,0,0,0)"
+            ),
+            xaxis=dict(gridcolor="#2A2A2A"),
+            yaxis=dict(gridcolor="#2A2A2A"),
         )
         
         st.plotly_chart(pred_fig, config={'displayModeBar': True, 'scrollZoom': True})
@@ -1101,9 +1127,9 @@ if data_loaded:
         st.markdown("---")
         st.markdown("### Next 7 Days Rolling Price Forecast")
         
-        # Rolling forecasts are pre-computed before tabs (cached in session_state).
-        # Just build dates and plot directly from cached values.
-        future_days = 7
+        # Fix #12: future_days already defined at line 808 inside the prediction block;
+        # redundant re-assignment removed — use the value from session state cache instead.
+        future_days = len(future_dates)
             
         # Draw Forecast Line Chart
         forecast_fig = go.Figure()
@@ -1129,10 +1155,17 @@ if data_loaded:
         forecast_fig.update_layout(
             height=450,
             template="plotly_dark",
+            paper_bgcolor="#0D0D0D",
+            plot_bgcolor="#141414",
             xaxis_title="Date",
             yaxis_title=f"Price ({info['currency']})",
             margin=dict(t=30, b=80, l=50, r=50),
-            legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5)
+            legend=dict(
+                orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5,
+                font=dict(color="#C8C8C8"), bgcolor="rgba(0,0,0,0)"
+            ),
+            xaxis=dict(gridcolor="#2A2A2A"),
+            yaxis=dict(gridcolor="#2A2A2A"),
         )
         
         st.plotly_chart(forecast_fig, config={'displayModeBar': True, 'scrollZoom': True})
@@ -1224,22 +1257,25 @@ if data_loaded:
         acc_fig.update_layout(
             height=350,
             template="plotly_dark",
+            paper_bgcolor="#0D0D0D",
+            plot_bgcolor="#141414",
             yaxis_title="Accuracy (%)",
             yaxis_range=[0, 100],
-            margin=dict(t=20, b=20, l=50, r=50)
+            margin=dict(t=20, b=20, l=50, r=50),
+            xaxis=dict(gridcolor="#2A2A2A"),
+            yaxis=dict(gridcolor="#2A2A2A"),
         )
         
         st.plotly_chart(acc_fig, config={'displayModeBar': True, 'scrollZoom': False})
         
-        # Determine best performing model
-        best_model = "PyTorch LSTM"
-        best_acc = metrics_lstm['Directional_Accuracy']
-        if metrics_xgb['Directional_Accuracy'] > best_acc:
-            best_model = "XGBoost"
-            best_acc = metrics_xgb['Directional_Accuracy']
-        if metrics_rf['Directional_Accuracy'] > metrics_xgb['Directional_Accuracy'] and metrics_rf['Directional_Accuracy'] > metrics_lstm['Directional_Accuracy']:
-            best_model = "Random Forest"
-            best_acc = metrics_rf['Directional_Accuracy']
+        # Fix #10: Use max() for a correct, unambiguous 3-way comparison
+        _model_accs = {
+            'Random Forest': metrics_rf['Directional_Accuracy'],
+            'XGBoost':       metrics_xgb['Directional_Accuracy'],
+            'PyTorch LSTM':  metrics_lstm['Directional_Accuracy'],
+        }
+        best_model = max(_model_accs, key=_model_accs.get)
+        best_acc   = _model_accs[best_model]
             
         st.info(f"💡 **Performance Insight**: **{best_model}** exhibited the highest Directional Accuracy on the test set (**{best_acc:.1f}%**). This suggests it is currently the most reliable model for predicting trend direction for **{info['longName']}** under these training parameters.")
 

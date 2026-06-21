@@ -29,14 +29,13 @@ def generate_trading_signals(
     # 1. Model Prediction change
     pred_pct_change = ((predicted_next_price - current_price) / current_price) * 100.0
     
-    # Technical Indicators
-    rsi = latest_row['RSI']
-    bb_upper = latest_row['BB_Upper']
-    bb_lower = latest_row['BB_Lower']
-    bb_mid = latest_row['BB_Middle']
-    
-    sma_10 = latest_row['SMA_10']
-    sma_50 = latest_row['SMA_50']
+    # Technical Indicators — with safe NaN fallbacks for stocks with short history
+    rsi     = latest_row['RSI']     if not pd.isna(latest_row.get('RSI',     float('nan'))) else 50.0
+    bb_upper = latest_row['BB_Upper'] if not pd.isna(latest_row.get('BB_Upper', float('nan'))) else current_price * 1.02
+    bb_lower = latest_row['BB_Lower'] if not pd.isna(latest_row.get('BB_Lower', float('nan'))) else current_price * 0.98
+    bb_mid   = latest_row['BB_Middle'] if not pd.isna(latest_row.get('BB_Middle', float('nan'))) else current_price
+    sma_10  = latest_row['SMA_10']  if not pd.isna(latest_row.get('SMA_10',  float('nan'))) else current_price
+    sma_50  = latest_row['SMA_50']  if not pd.isna(latest_row.get('SMA_50',  float('nan'))) else current_price
     
     # Calculate scores and reasons
     score = 0.0

@@ -15,7 +15,8 @@ def get_local_fallback_response(prompt: str, context: Dict[str, Any]) -> str:
     currency = context.get('currency', 'USD')
     consensus = context.get('consensus') or {}
     forecast = context.get('forecast') or {}
-    metrics = context.get('metrics') or {}
+    # 'metrics' lives under consensus, not at the top level of context
+    metrics = consensus.get('metrics') or {}
     model_metrics = context.get('model_metrics') or {}
 
     # 1. Technical Indicators / RSI / Bollinger Bands
