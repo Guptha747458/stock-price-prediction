@@ -23,6 +23,69 @@ from src.models import (
 from src.trading import generate_trading_signals
 from src.assistant import get_assistant_response
 
+@st.dialog("💬 AlphaPulse AI Assistant", width="large")
+def chat_dialog(ticker, info, chat_context):
+    st.markdown("### 💬 AlphaPulse AI Assistant")
+    
+    groq_api_key = os.environ.get("GROQ_API_KEY", "")
+    # Display indicator of status
+    if not groq_api_key:
+        st.caption("⚠️ **Local Analyzer Mode**: Set `GROQ_API_KEY` in `.env` for full AI assistant features.")
+    else:
+        st.caption("🟢 **Groq Active** (Connected via LangChain)")
+        
+    # Initialize or reset chat history when switching stock tickers
+    if "chat_messages" not in st.session_state or st.session_state.get("current_chat_ticker") != ticker:
+        st.session_state["chat_messages"] = [
+            {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
+        ]
+        st.session_state["current_chat_ticker"] = ticker
+    # Clear history button
+    if st.button("🗑️ Clear Chat History", key="clear_chat"):
+        st.session_state["chat_messages"] = [
+            {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
+        ]
+        st.rerun()
+
+    # Display chat messages from history on app rerun
+    for msg in st.session_state["chat_messages"]:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            
+    user_query = st.chat_input("Ask AlphaPulse AI...")
+        
+    if user_query:
+        # Display user message in chat message container
+        st.session_state["chat_messages"].append({"role": "user", "content": user_query})
+        with st.chat_message("user"):
+            st.markdown(user_query)
+            
+        # Get assistant response
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing stock patterns & generating response..."):
+                resp = get_assistant_response(
+                    prompt=user_query,
+                    chat_history=st.session_state["chat_messages"][:-1],
+                    context=chat_context,
+                    api_key=groq_api_key
+                )
+                st.markdown(resp)
+                st.session_state["chat_messages"].append({"role": "assistant", "content": resp})
+
+
+
+def select_search_ticker(chosen_label):
+    chosen_symbol = chosen_label.split("  —  ")[0].strip()
+    st.session_state["custom_ticker"]       = chosen_symbol
+    st.session_state["custom_ticker_input"] = chosen_symbol
+    st.session_state["market_category"]     = "🏗️ Custom (Any Exchange)"
+    st.session_state["has_run"]             = False
+    st.session_state["last_seen_ticker"]    = chosen_symbol.upper()
+    if "search_results" in st.session_state:
+        del st.session_state["search_results"]
+
+
+
 # --- Page Configuration ---
 st.set_page_config(
     page_title="AlphaPulse - Stock Price Prediction System",
@@ -31,111 +94,151 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- Fixed Theme Configuration (Bloomberg Terminal) ---
+bg_color = "#0D0D0D"
+sidebar_bg = "#111111"
+card_bg = "#141414"
+card_hover_bg = "#181818"
+accent_color = "#FF6600"
+text_color = "#C8C8C8"
+heading_color = "#E8E8E8"
+border_color = "#2A2A2A"
+input_bg = "#141414"
+input_border = "#2A2A2A"
+input_text = "#E8E8E8"
+tab_text_unselected = "#666666"
+df_bg = "#141414"
+df_header_bg = "#1A1A1A"
+chat_bg = "#141414"
+plotly_template = "plotly_dark"
+plotly_paper_bg = "#0D0D0D"
+plotly_plot_bg = "#141414"
+plotly_grid_color = "#2A2A2A"
+
+
 # --- Professional Finance Styling (Bloomberg Terminal) ---
-_CSS = """
+_CSS = f"""
 <style>
 /* --- AlphaPulse — Bloomberg Terminal Design --- */
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
+:root {{
+    --bg-color: {bg_color};
+    --sidebar-bg: {sidebar_bg};
+    --card-bg: {card_bg};
+    --card-hover-bg: {card_hover_bg};
+    --accent-color: {accent_color};
+    --text-color: {text_color};
+    --heading-color: {heading_color};
+    --border-color: {border_color};
+    --input-bg: {input_bg};
+    --input-border: {input_border};
+    --input-text: {input_text};
+    --tab-text-unselected: {tab_text_unselected};
+    --df-bg: {df_bg};
+    --df-header-bg: {df_header_bg};
+    --chat-bg: {chat_bg};
+}}
+
 /* ── Base ── */
-html, body, [data-testid="stAppViewContainer"] {
-    background: #0D0D0D;
+html, body, [data-testid="stAppViewContainer"] {{
+    background: var(--bg-color);
     font-family: 'IBM Plex Sans', sans-serif;
-    color: #C8C8C8;
-}
+    color: var(--text-color);
+}}
 
 /* Top status bar accent — the signature element */
-[data-testid="stAppViewContainer"]::before {
+[data-testid="stAppViewContainer"]::before {{
     content: "";
     position: fixed;
     top: 0; left: 0; right: 0;
     height: 2px;
-    background: #FF6600;
+    background: var(--accent-color);
     z-index: 9999;
     pointer-events: none;
-}
+}}
 
 /* ── Typography ── */
-h1, h2, h3, h4 {
+h1, h2, h3, h4 {{
     font-family: 'IBM Plex Sans', sans-serif;
     font-weight: 700;
     letter-spacing: 0.01em;
-    color: #E8E8E8;
+    color: var(--heading-color);
     text-transform: uppercase;
-}
+}}
 
-.main-title {
+.main-title {{
     font-family: 'IBM Plex Mono', monospace;
-    color: #FF6600;
+    color: var(--accent-color);
     font-size: 2.1rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     margin-bottom: 0.1rem;
     text-transform: uppercase;
-}
+}}
 
-.subtitle {
-    color: #666666;
+.subtitle {{
+    color: var(--tab-text-unselected);
     font-size: 0.82rem;
     font-family: 'IBM Plex Mono', monospace;
     letter-spacing: 0.06em;
     text-transform: uppercase;
     margin-bottom: 1.5rem;
-    border-left: 2px solid #FF6600;
+    border-left: 2px solid var(--accent-color);
     padding-left: 0.6rem;
-}
+}}
 
 /* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: #111111;
-    border-right: 1px solid #2A2A2A;
-}
-[data-testid="stSidebar"] .block-container {
+[data-testid="stSidebar"] {{
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+}}
+[data-testid="stSidebar"] .block-container {{
     padding-top: 1rem;
-}
+}}
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] p {
+[data-testid="stSidebar"] p {{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
-    color: #888888;
+    color: var(--tab-text-unselected);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-}
+}}
 
 /* ── Metric cards — sharp, borderline, no rounding ── */
-.metric-card {
-    background: #141414;
-    border: 1px solid #2A2A2A;
-    border-top: 2px solid #FF6600;
+.metric-card {{
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-top: 2px solid var(--accent-color);
     border-radius: 0;
     padding: 0.9rem 1rem;
     transition: border-color 0.15s ease, background 0.15s ease;
-}
-.metric-card:hover {
-    background: #181818;
-    border-color: #FF6600;
-    border-top-color: #FF6600;
-}
+}}
+.metric-card:hover {{
+    background: var(--card-hover-bg);
+    border-color: var(--accent-color);
+    border-top-color: var(--accent-color);
+}}
 
-.metric-label {
+.metric-label {{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.68rem;
-    color: #555555;
+    color: var(--tab-text-unselected);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     margin-bottom: 0.3rem;
-}
-.metric-value {
+}}
+.metric-value {{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 1.9rem;
     font-weight: 600;
-    color: #E8E8E8;
+    color: var(--heading-color);
     line-height: 1.1;
-}
+}}
 
 /* ── Recommendation badges — flat, terminal style ── */
-.rec-badge {
+.rec-badge {{
     display: inline-block;
     padding: 0.3rem 1rem;
     font-family: 'IBM Plex Mono', monospace;
@@ -146,25 +249,25 @@ h1, h2, h3, h4 {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     border: none;
-}
-.rec-strong-buy  { background: #00AA44; color: #0D0D0D; }
-.rec-buy         { background: #007733; color: #CCFFDD; }
-.rec-hold        { background: #333333; color: #AAAAAA; }
-.rec-sell        { background: #CC2200; color: #FFE0DD; }
-.rec-strong-sell { background: #990000; color: #FFE0DD; }
+}}
+.rec-strong-buy  {{ background: #00AA44; color: #0D0D0D; }}
+.rec-buy         {{ background: #007733; color: #CCFFDD; }}
+.rec-hold        {{ background: #333333; color: #AAAAAA; }}
+.rec-sell        {{ background: #CC2200; color: #FFE0DD; }}
+.rec-strong-sell {{ background: #990000; color: #FFE0DD; }}
 
 /* ── Status ── */
-.status-ok {
+.status-ok {{
     color: #00CC55;
     font-family: 'IBM Plex Mono', monospace;
     font-weight: 500;
-}
+}}
 
 /* ── Buttons ── */
-.stButton > button {
-    background: #1A1A1A;
-    color: #C8C8C8;
-    border: 1px solid #333333;
+.stButton > button {{
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
     border-radius: 0;
     padding: 0.45rem 1rem;
     font-family: 'IBM Plex Mono', monospace;
@@ -172,133 +275,171 @@ h1, h2, h3, h4 {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     transition: all 0.15s ease;
-}
-.stButton > button:hover {
-    background: #FF6600;
+}}
+.stButton > button:hover {{
+    background: var(--accent-color);
     color: #0D0D0D;
-    border-color: #FF6600;
-}
+    border-color: var(--accent-color);
+}}
 
 /* ── Inputs & selects ── */
 [data-testid="stTextInput"] input,
-[data-testid="stSelectbox"] > div > div {
-    background: #141414 !important;
-    border: 1px solid #2A2A2A !important;
+[data-testid="stSelectbox"] > div > div {{
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
     border-radius: 0 !important;
-    color: #E8E8E8 !important;
+    color: var(--input-text) !important;
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 0.82rem !important;
-}
-[data-testid="stTextInput"] input:focus {
-    border-color: #FF6600 !important;
+}}
+[data-testid="stTextInput"] input:focus {{
+    border-color: var(--accent-color) !important;
     box-shadow: none !important;
-}
+}}
 
 /* ── Tabs ── */
-[data-testid="stTabs"] [role="tab"] {
+[data-testid="stTabs"] [role="tab"] {{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #666666;
+    color: var(--tab-text-unselected);
     border-radius: 0;
     padding: 0.5rem 1rem;
     border-bottom: 2px solid transparent;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: #FF6600;
-    border-bottom: 2px solid #FF6600;
+}}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {{
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
     background: transparent;
-}
+}}
 
 /* ── DataFrames / tables ── */
-[data-testid="stDataFrame"] {
+[data-testid="stDataFrame"] {{
     border-radius: 0;
-    border: 1px solid #2A2A2A;
-}
-[data-testid="stDataFrame"] th {
-    background: #1A1A1A !important;
+    border: 1px solid var(--border-color);
+}}
+[data-testid="stDataFrame"] th {{
+    background: var(--df-header-bg) !important;
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 0.72rem !important;
     text-transform: uppercase !important;
     letter-spacing: 0.06em !important;
-    color: #888888 !important;
-}
-[data-testid="stDataFrame"] td {
+    color: var(--tab-text-unselected) !important;
+}}
+[data-testid="stDataFrame"] td {{
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 0.82rem !important;
-    color: #C8C8C8 !important;
-}
+    color: var(--text-color) !important;
+}}
 
 /* ── Plotly chart containers ── */
-.js-plotly-plot {
-    border: 1px solid #2A2A2A;
+.js-plotly-plot {{
+    border: 1px solid var(--border-color);
     border-radius: 0;
-}
+}}
 
 /* ── Info / alert boxes ── */
-[data-testid="stAlert"] {
-    background: #141414 !important;
-    border: 1px solid #2A2A2A !important;
-    border-left: 3px solid #FF6600 !important;
+[data-testid="stAlert"] {{
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    border-left: 3px solid var(--accent-color) !important;
     border-radius: 0 !important;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.82rem;
-    color: #C8C8C8 !important;
-}
+    color: var(--text-color) !important;
+}}
 
 /* ── Dividers ── */
-hr {
+hr {{
     border: none;
-    border-top: 1px solid #2A2A2A;
+    border-top: 1px solid var(--border-color);
     margin: 1rem 0;
-}
+}}
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #0D0D0D; }
-::-webkit-scrollbar-thumb { background: #333333; border-radius: 0; }
-::-webkit-scrollbar-thumb:hover { background: #FF6600; }
+::-webkit-scrollbar {{ width: 6px; height: 6px; }}
+::-webkit-scrollbar-track {{ background: var(--bg-color); }}
+::-webkit-scrollbar-thumb {{ background: var(--border-color); border-radius: 0; }}
+::-webkit-scrollbar-thumb:hover {{ background: var(--accent-color); }}
 
 /* ── Streamlit metric widgets ── */
-[data-testid="metric-container"] {
-    background: #141414;
-    border: 1px solid #2A2A2A;
-    border-top: 2px solid #333333;
+[data-testid="metric-container"] {{
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-top: 2px solid var(--border-color);
     padding: 0.75rem 1rem;
     border-radius: 0;
-}
-[data-testid="metric-container"] label {
+}}
+[data-testid="metric-container"] label {{
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 0.68rem !important;
     text-transform: uppercase !important;
     letter-spacing: 0.08em !important;
-    color: #555555 !important;
-}
-[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    color: var(--tab-text-unselected) !important;
+}}
+[data-testid="metric-container"] [data-testid="stMetricValue"] {{
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 1.6rem !important;
-    color: #E8E8E8 !important;
-}
-[data-testid="metric-container"] [data-testid="stMetricDelta"] {
+    color: var(--heading-color) !important;
+}}
+[data-testid="metric-container"] [data-testid="stMetricDelta"] {{
     font-family: 'IBM Plex Mono', monospace !important;
     font-size: 0.78rem !important;
-}
+}}
 
 /* ── Chat messages ── */
-[data-testid="stChatMessage"] {
-    background: #141414 !important;
-    border: 1px solid #2A2A2A !important;
+[data-testid="stChatMessage"] {{
+    background: var(--chat-bg) !important;
+    border: 1px solid var(--border-color) !important;
     border-radius: 0 !important;
     font-family: 'IBM Plex Sans', sans-serif;
-}
+}}
 
 /* ── Spinner ── */
-[data-testid="stSpinner"] p {
+[data-testid="stSpinner"] p {{
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
-    color: #666666;
-}
+    color: var(--tab-text-unselected);
+}}
+
+/* ── Welcome Container & Feature Cards ── */
+.welcome-container {{
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 2.5rem;
+    margin-top: 1rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}}
+.feature-card {{
+    background: var(--card-hover-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.2rem;
+}}
+.feature-card h4 {{
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+    color: var(--accent-color);
+}}
+.feature-card p {{
+    color: var(--text-color);
+    font-size: 0.92rem;
+    line-height: 1.4;
+    margin: 0;
+}}
+.start-instructions {{
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+}}
+.start-instructions p {{
+    margin: 0;
+}}
 </style>
 """
 
@@ -400,58 +541,11 @@ GLOBAL_STOCKS = {
     "🏗️ Custom (Any Exchange)": [],   # sentinel for custom mode
 }
 
-open_chat_clicked = st.sidebar.button(
-    "💬 AlphaPulse AI Assistant", 
-    use_container_width=True, 
-    disabled=not st.session_state.get("has_run", False),
-    help="You must fetch and train models first." if not st.session_state.get("has_run", False) else "Open the AI Chatbot"
-)
+chat_button_placeholder = st.sidebar.empty()
 st.sidebar.markdown("---")
 
 # ── Stock Selection Mode ──────────────────────────────────────────────────────
 st.sidebar.markdown("### 🌍 Stock Selection")
-
-# ---- Live Search by company name ----------------------------------------
-with st.sidebar.expander("🔍 Search by Company Name", expanded=False):
-    search_query = st.text_input(
-        "Type company name or partial ticker:",
-        value="",
-        placeholder="e.g. Apple, Samsung, Tata, Bitcoin…",
-        key="search_query_input"
-    )
-    do_search = st.button("Search", key="search_btn", use_container_width=True)
-
-    # If the user typed a query and pressed search, perform the search and store in session state
-    if do_search and search_query.strip():
-        with st.spinner("Searching Yahoo Finance…"):
-            st.session_state["search_results"] = search_tickers(search_query.strip(), max_results=12)
-            st.session_state["search_query_last"] = search_query.strip()
-
-    # Display results if they exist in session state
-    if "search_results" in st.session_state and st.session_state["search_results"]:
-        results = st.session_state["search_results"]
-        st.success(f"Results for '{st.session_state.get('search_query_last', '')}':")
-        # Build selectable labels
-        result_labels = [
-            f"{r['symbol']}  —  {r['name']}  [{r['exchange']} · {r['type_display']}]"
-            for r in results
-        ]
-        chosen_label = st.radio(
-            "Pick a result to use it:",
-            result_labels,
-            key="search_result_radio"
-        )
-        if st.button("✅ Use this ticker", key="use_search_ticker", use_container_width=True):
-            chosen_symbol = chosen_label.split("  —  ")[0].strip()
-            st.session_state["custom_ticker"]       = chosen_symbol
-            st.session_state["custom_ticker_input"] = chosen_symbol # Important: updates the actual widget's value
-            st.session_state["market_category"]     = "🏗️ Custom (Any Exchange)"
-            st.session_state["has_run"]             = True
-            st.session_state["last_seen_ticker"]    = chosen_symbol.upper()
-            del st.session_state["search_results"]
-            st.rerun()
-    elif do_search:
-        st.warning("No results found. Try a different name or check spelling.")
 
 market_category = st.sidebar.selectbox(
     "Market / Category:",
@@ -502,6 +596,50 @@ else:
         key=f"stock_picker_{market_category}"   # <-- category-scoped key fixes reset bug
     )
     ticker = selected_label.split("  —  ")[0].strip().upper()
+    
+    # Save the curated selection to pre-populate Custom mode when switched
+    st.session_state["custom_ticker"] = ticker
+    st.session_state["custom_ticker_input"] = ticker
+
+    # ---- Live Search by company name ----------------------------------------
+    with st.sidebar.expander("🔍 Search by Company Name", expanded=False):
+        search_query = st.text_input(
+            "Type company name or partial ticker:",
+            value="",
+            placeholder="e.g. Apple, Samsung, Tata, Bitcoin…",
+            key="search_query_input"
+        )
+        do_search = st.button("Search", key="search_btn", use_container_width=True)
+
+        # If the user typed a query and pressed search, perform the search and store in session state
+        if do_search and search_query.strip():
+            with st.spinner("Searching Yahoo Finance…"):
+                st.session_state["search_results"] = search_tickers(search_query.strip(), max_results=12)
+                st.session_state["search_query_last"] = search_query.strip()
+
+        # Display results if they exist in session state
+        if "search_results" in st.session_state and st.session_state["search_results"]:
+            results = st.session_state["search_results"]
+            st.success(f"Results for '{st.session_state.get('search_query_last', '')}':")
+            # Build selectable labels
+            result_labels = [
+                f"{r['symbol']}  —  {r['name']}  [{r['exchange']} · {r['type_display']}]"
+                for r in results
+            ]
+            chosen_label = st.radio(
+                "Pick a result to use it:",
+                result_labels,
+                key="search_result_radio"
+            )
+            st.button(
+                "✅ Use this ticker", 
+                key="use_search_ticker", 
+                use_container_width=True, 
+                on_click=select_search_ticker, 
+                args=(chosen_label,)
+            )
+        elif do_search:
+            st.warning("No results found. Try a different name or check spelling.")
 
 # Final safety guard – never pass an empty ticker to the data loader
 if not ticker:
@@ -563,34 +701,42 @@ if run_button:
     st.session_state["has_run"] = True
     st.session_state["last_seen_ticker"] = ticker
 
+has_run = st.session_state.get("has_run", False)
+open_chat_clicked = chat_button_placeholder.button(
+    "💬 AlphaPulse AI Assistant", 
+    use_container_width=True, 
+    disabled=not has_run,
+    help="You must fetch and train models first." if not has_run else "Open the AI Chatbot"
+)
+
 # Render Welcome Landing Page if not run yet
 if not st.session_state["has_run"]:
     st.markdown(
-'<div style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; padding: 2.5rem; margin-top: 1rem; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);">'
-'<h2 style="color: #38BDF8; font-weight: 800; font-size: 2.2rem; margin-bottom: 0.5rem; font-family: \'Outfit\', sans-serif;">Welcome to AlphaPulse! 📈</h2>'
-'<p style="color: #94A3B8; font-size: 1.15rem; margin-bottom: 2rem;">An advanced, AI-powered stock prediction &amp; quantitative analysis platform utilizing machine learning models to forecast price trends.</p>'
-'<h3 style="color: #E2E8F0; font-size: 1.3rem; margin-bottom: 1rem; font-family: \'Outfit\', sans-serif;">🎯 Core Features &amp; Capabilities</h3>'
+'<div class="welcome-container">'
+'<h2 style="color: var(--accent-color); font-weight: 800; font-size: 2.2rem; margin-bottom: 0.5rem; font-family: \'Outfit\', sans-serif;">Welcome to AlphaPulse! 📈</h2>'
+'<p style="color: var(--text-color); font-size: 1.15rem; margin-bottom: 2rem; opacity: 0.85;">An advanced, AI-powered stock prediction &amp; quantitative analysis platform utilizing machine learning models to forecast price trends.</p>'
+'<h3 style="color: var(--heading-color); font-size: 1.3rem; margin-bottom: 1rem; font-family: \'Outfit\', sans-serif;">🎯 Core Features &amp; Capabilities</h3>'
 '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2.5rem;">'
-'<div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 1.2rem;">'
-'<h4 style="color: #818CF8; margin-bottom: 0.5rem; font-size: 1.05rem;">🧠 Machine Learning Predictions</h4>'
-'<p style="color: #94A3B8; font-size: 0.92rem; line-height: 1.4;">Trains three separate models in real-time on historical prices: <b>Random Forest</b>, <b>XGBoost</b>, and a deep learning <b>PyTorch LSTM Network</b>.</p>'
+'<div class="feature-card">'
+'<h4>🧠 Machine Learning Predictions</h4>'
+'<p>Trains three separate models in real-time on historical prices: <b>Random Forest</b>, <b>XGBoost</b>, and a deep learning <b>PyTorch LSTM Network</b>.</p>'
 '</div>'
-'<div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 1.2rem;">'
-'<h4 style="color: #C084FC; margin-bottom: 0.5rem; font-size: 1.05rem;">📊 Technical Charts &amp; Overlays</h4>'
-'<p style="color: #94A3B8; font-size: 0.92rem; line-height: 1.4;">Generates interactive candlestick charts with overlays for SMAs, EMAs, Bollinger Bands, and RSI indicators.</p>'
+'<div class="feature-card">'
+'<h4>📊 Technical Charts &amp; Overlays</h4>'
+'<p>Generates interactive candlestick charts with overlays for SMAs, EMAs, Bollinger Bands, and RSI indicators.</p>'
 '</div>'
-'<div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 1.2rem;">'
-'<h4 style="color: #38BDF8; margin-bottom: 0.5rem; font-size: 1.05rem;">🔮 Autoregressive Forecasts</h4>'
-'<p style="color: #94A3B8; font-size: 0.92rem; line-height: 1.4;">Rolls predictions recursively to project a <b>7-day price forecast</b> showing trends and model consensus.</p>'
+'<div class="feature-card">'
+'<h4>🔮 Autoregressive Forecasts</h4>'
+'<p>Rolls predictions recursively to project a <b>7-day price forecast</b> showing trends and model consensus.</p>'
 '</div>'
-'<div style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 12px; padding: 1.2rem;">'
-'<h4 style="color: #34D399; margin-bottom: 0.5rem; font-size: 1.05rem;">🚦 Consensus Trading Signals</h4>'
-'<p style="color: #94A3B8; font-size: 0.92rem; line-height: 1.4;">Combines models and technical indicator states to compute quantitative buy/hold/sell trading signals.</p>'
+'<div class="feature-card">'
+'<h4>🚦 Consensus Trading Signals</h4>'
+'<p>Combines models and technical indicator states to compute quantitative buy/hold/sell trading signals.</p>'
 '</div>'
 '</div>'
-'<div style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(129, 140, 248, 0.1) 100%); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 1.5rem; text-align: center;">'
-'<p style="color: #F8FAFC; font-weight: 600; font-size: 1.1rem; margin-bottom: 0.3rem;">👈 How to start:</p>'
-'<p style="color: #94A3B8; font-size: 0.95rem; margin-bottom: 0;">Select a stock from the left sidebar or search by company name, then click <b>⚡ Fetch &amp; Train Models</b> to load the interactive dashboard.</p>'
+'<div class="start-instructions">'
+'<p style="color: var(--heading-color); font-weight: 600; font-size: 1.1rem; margin-bottom: 0.3rem;">👈 How to start:</p>'
+'<p style="color: var(--text-color); font-size: 0.95rem; margin-bottom: 0; opacity: 0.85;">Select a stock from the left sidebar or search by company name, then click <b>⚡ Fetch &amp; Train Models</b> to load the interactive dashboard.</p>'
 '</div>'
 '</div>',
         unsafe_allow_html=True
@@ -1010,9 +1156,9 @@ if data_loaded:
         # Update layout
         fig.update_layout(
             height=800,
-            template="plotly_dark",
-            paper_bgcolor="#0D0D0D",
-            plot_bgcolor="#141414",
+            template=plotly_template,
+            paper_bgcolor=plotly_paper_bg,
+            plot_bgcolor=plotly_plot_bg,
             xaxis_rangeslider_visible=False,
             legend=dict(
                 orientation="h",
@@ -1020,16 +1166,16 @@ if data_loaded:
                 y=-0.08,
                 xanchor="center",
                 x=0.5,
-                font=dict(size=11, color="#C8C8C8"),
+                font=dict(size=11, color=text_color),
                 bgcolor="rgba(0,0,0,0)"
             ),
             margin=dict(t=30, b=80, l=50, r=50),
-            xaxis=dict(gridcolor="#2A2A2A", linecolor="#2A2A2A"),
-            yaxis=dict(gridcolor="#2A2A2A", linecolor="#2A2A2A"),
+            xaxis=dict(gridcolor=plotly_grid_color, linecolor=plotly_grid_color),
+            yaxis=dict(gridcolor=plotly_grid_color, linecolor=plotly_grid_color),
         )
-        fig.update_yaxes(title_text="Price", row=1, col=1, gridcolor="#2A2A2A")
-        fig.update_yaxes(title_text="RSI", row=2, col=1, range=[10, 90], gridcolor="#2A2A2A")
-        fig.update_yaxes(title_text="Volume", row=3, col=1, gridcolor="#2A2A2A")
+        fig.update_yaxes(title_text="Price", row=1, col=1, gridcolor=plotly_grid_color)
+        fig.update_yaxes(title_text="RSI", row=2, col=1, range=[10, 90], gridcolor=plotly_grid_color)
+        fig.update_yaxes(title_text="Volume", row=3, col=1, gridcolor=plotly_grid_color)
         
         st.plotly_chart(fig, config={'displayModeBar': True, 'scrollZoom': True})
 
@@ -1108,18 +1254,18 @@ if data_loaded:
         
         pred_fig.update_layout(
             height=500,
-            template="plotly_dark",
-            paper_bgcolor="#0D0D0D",
-            plot_bgcolor="#141414",
+            template=plotly_template,
+            paper_bgcolor=plotly_paper_bg,
+            plot_bgcolor=plotly_plot_bg,
             xaxis_title="Date",
             yaxis_title=f"Close Price ({info['currency']})",
             margin=dict(t=30, b=80, l=50, r=50),
             legend=dict(
                 orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5,
-                font=dict(color="#C8C8C8"), bgcolor="rgba(0,0,0,0)"
+                font=dict(color=text_color), bgcolor="rgba(0,0,0,0)"
             ),
-            xaxis=dict(gridcolor="#2A2A2A"),
-            yaxis=dict(gridcolor="#2A2A2A"),
+            xaxis=dict(gridcolor=plotly_grid_color),
+            yaxis=dict(gridcolor=plotly_grid_color),
         )
         
         st.plotly_chart(pred_fig, config={'displayModeBar': True, 'scrollZoom': True})
@@ -1154,18 +1300,18 @@ if data_loaded:
         
         forecast_fig.update_layout(
             height=450,
-            template="plotly_dark",
-            paper_bgcolor="#0D0D0D",
-            plot_bgcolor="#141414",
+            template=plotly_template,
+            paper_bgcolor=plotly_paper_bg,
+            plot_bgcolor=plotly_plot_bg,
             xaxis_title="Date",
             yaxis_title=f"Price ({info['currency']})",
             margin=dict(t=30, b=80, l=50, r=50),
             legend=dict(
                 orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5,
-                font=dict(color="#C8C8C8"), bgcolor="rgba(0,0,0,0)"
+                font=dict(color=text_color), bgcolor="rgba(0,0,0,0)"
             ),
-            xaxis=dict(gridcolor="#2A2A2A"),
-            yaxis=dict(gridcolor="#2A2A2A"),
+            xaxis=dict(gridcolor=plotly_grid_color),
+            yaxis=dict(gridcolor=plotly_grid_color),
         )
         
         st.plotly_chart(forecast_fig, config={'displayModeBar': True, 'scrollZoom': True})
@@ -1256,14 +1402,14 @@ if data_loaded:
         
         acc_fig.update_layout(
             height=350,
-            template="plotly_dark",
-            paper_bgcolor="#0D0D0D",
-            plot_bgcolor="#141414",
+            template=plotly_template,
+            paper_bgcolor=plotly_paper_bg,
+            plot_bgcolor=plotly_plot_bg,
             yaxis_title="Accuracy (%)",
             yaxis_range=[0, 100],
             margin=dict(t=20, b=20, l=50, r=50),
-            xaxis=dict(gridcolor="#2A2A2A"),
-            yaxis=dict(gridcolor="#2A2A2A"),
+            xaxis=dict(gridcolor=plotly_grid_color),
+            yaxis=dict(gridcolor=plotly_grid_color),
         )
         
         st.plotly_chart(acc_fig, config={'displayModeBar': True, 'scrollZoom': False})
@@ -1280,54 +1426,5 @@ if data_loaded:
         st.info(f"💡 **Performance Insight**: **{best_model}** exhibited the highest Directional Accuracy on the test set (**{best_acc:.1f}%**). This suggests it is currently the most reliable model for predicting trend direction for **{info['longName']}** under these training parameters.")
 
     # ==================== CHATBOT DIALOG ====================
-    @st.dialog("💬 AlphaPulse AI Assistant", width="large")
-    def chat_dialog():
-        st.markdown("### 💬 AlphaPulse AI Assistant")
-        
-        groq_api_key = os.environ.get("GROQ_API_KEY", "")
-        # Display indicator of status
-        if not groq_api_key:
-            st.caption("⚠️ **Local Analyzer Mode**: Set `GROQ_API_KEY` in `.env` for full AI assistant features.")
-        else:
-            st.caption("🟢 **Groq Active** (Connected via LangChain)")
-            
-        # Initialize or reset chat history when switching stock tickers
-        if "chat_messages" not in st.session_state or st.session_state.get("current_chat_ticker") != ticker:
-            st.session_state["chat_messages"] = [
-                {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
-            ]
-            st.session_state["current_chat_ticker"] = ticker
-        # Clear history button
-        if st.button("🗑️ Clear Chat History", key="clear_chat"):
-            st.session_state["chat_messages"] = [
-                {"role": "assistant", "content": f"Hello! I am your AlphaPulse AI Assistant. Ask me anything about **{info['longName']} ({ticker})** technical indicators, model predictions, or company performance!"}
-            ]
-            st.rerun()
-
-        # Display chat messages from history on app rerun
-        for msg in st.session_state["chat_messages"]:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-                
-        user_query = st.chat_input("Ask AlphaPulse AI...")
-            
-        if user_query:
-            # Display user message in chat message container
-            st.session_state["chat_messages"].append({"role": "user", "content": user_query})
-            with st.chat_message("user"):
-                st.markdown(user_query)
-                
-            # Get assistant response
-            with st.chat_message("assistant"):
-                with st.spinner("Analyzing stock patterns & generating response..."):
-                    resp = get_assistant_response(
-                        prompt=user_query,
-                        chat_history=st.session_state["chat_messages"][:-1],
-                        context=chat_context,
-                        api_key=groq_api_key
-                    )
-                    st.markdown(resp)
-                    st.session_state["chat_messages"].append({"role": "assistant", "content": resp})
-
     if open_chat_clicked:
-        chat_dialog()
+        chat_dialog(ticker, info, chat_context)
