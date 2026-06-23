@@ -77,7 +77,6 @@ def chat_dialog(ticker, info, chat_context):
 def select_search_ticker(chosen_label):
     chosen_symbol = chosen_label.split("  —  ")[0].strip()
     st.session_state["custom_ticker"]       = chosen_symbol
-    st.session_state["custom_ticker_input"] = chosen_symbol
     st.session_state["market_category"]     = "🏗️ Custom (Any Exchange)"
     st.session_state["has_run"]             = False
     st.session_state["last_seen_ticker"]    = chosen_symbol.upper()
@@ -562,8 +561,7 @@ if market_category == "🏗️ Custom (Any Exchange)":
     ticker = st.sidebar.text_input(
         "Ticker Symbol:",
         value=st.session_state.get("custom_ticker", "AAPL"),
-        placeholder="e.g. AAPL, RELIANCE.NS, BTC-USD",
-        key="custom_ticker_input"
+        placeholder="e.g. AAPL, RELIANCE.NS, BTC-USD"
     ).strip().upper()
     st.session_state["custom_ticker"] = ticker
 
@@ -599,47 +597,46 @@ else:
     
     # Save the curated selection to pre-populate Custom mode when switched
     st.session_state["custom_ticker"] = ticker
-    st.session_state["custom_ticker_input"] = ticker
 
-    # ---- Live Search by company name ----------------------------------------
-    with st.sidebar.expander("🔍 Search by Company Name", expanded=False):
-        search_query = st.text_input(
-            "Type company name or partial ticker:",
-            value="",
-            placeholder="e.g. Apple, Samsung, Tata, Bitcoin…",
-            key="search_query_input"
+# ---- Live Search by company name ----------------------------------------
+with st.sidebar.expander("🔍 Search by Company Name", expanded=False):
+    search_query = st.text_input(
+        "Type company name or partial ticker:",
+        value="",
+        placeholder="e.g. Apple, Samsung, Tata, Bitcoin…",
+        key="search_query_input"
+    )
+    do_search = st.button("Search", key="search_btn", use_container_width=True)
+
+    # If the user typed a query and pressed search, perform the search and store in session state
+    if do_search and search_query.strip():
+        with st.spinner("Searching Yahoo Finance…"):
+            st.session_state["search_results"] = search_tickers(search_query.strip(), max_results=12)
+            st.session_state["search_query_last"] = search_query.strip()
+
+    # Display results if they exist in session state
+    if "search_results" in st.session_state and st.session_state["search_results"]:
+        results = st.session_state["search_results"]
+        st.success(f"Results for '{st.session_state.get('search_query_last', '')}':")
+        # Build selectable labels
+        result_labels = [
+            f"{r['symbol']}  —  {r['name']}  [{r['exchange']} · {r['type_display']}]"
+            for r in results
+        ]
+        chosen_label = st.radio(
+            "Pick a result to use it:",
+            result_labels,
+            key="search_result_radio"
         )
-        do_search = st.button("Search", key="search_btn", use_container_width=True)
-
-        # If the user typed a query and pressed search, perform the search and store in session state
-        if do_search and search_query.strip():
-            with st.spinner("Searching Yahoo Finance…"):
-                st.session_state["search_results"] = search_tickers(search_query.strip(), max_results=12)
-                st.session_state["search_query_last"] = search_query.strip()
-
-        # Display results if they exist in session state
-        if "search_results" in st.session_state and st.session_state["search_results"]:
-            results = st.session_state["search_results"]
-            st.success(f"Results for '{st.session_state.get('search_query_last', '')}':")
-            # Build selectable labels
-            result_labels = [
-                f"{r['symbol']}  —  {r['name']}  [{r['exchange']} · {r['type_display']}]"
-                for r in results
-            ]
-            chosen_label = st.radio(
-                "Pick a result to use it:",
-                result_labels,
-                key="search_result_radio"
-            )
-            st.button(
-                "✅ Use this ticker", 
-                key="use_search_ticker", 
-                use_container_width=True, 
-                on_click=select_search_ticker, 
-                args=(chosen_label,)
-            )
-        elif do_search:
-            st.warning("No results found. Try a different name or check spelling.")
+        st.button(
+            "✅ Use this ticker", 
+            key="use_search_ticker", 
+            use_container_width=True, 
+            on_click=select_search_ticker, 
+            args=(chosen_label,)
+        )
+    elif do_search:
+        st.warning("No results found. Try a different name or check spelling.")
 
 # Final safety guard – never pass an empty ticker to the data loader
 if not ticker:
