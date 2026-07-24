@@ -2,6 +2,11 @@
 
 A Python-based machine learning project for predicting stock prices using historical market data.
 
+![Python](https://img.shields.io/badge/Python-100%25-blue?logo=python&logoColor=white)
+![Repo Size](https://img.shields.io/github/repo-size/Guptha747458/stock-price-prediction)
+![Top Language](https://img.shields.io/github/languages/top/Guptha747458/stock-price-prediction)
+![License](https://img.shields.io/github/license/Guptha747458/stock-price-prediction)
+
 ## 📌 Overview
 
 This repository contains code for building and evaluating stock price prediction models. It includes data preparation, feature engineering, model training, and evaluation workflows.
